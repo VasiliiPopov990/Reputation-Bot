@@ -1,0 +1,77 @@
+import telebot
+import os
+
+API_TOKEN = 'YOUR_TELEGRAMM_BOT_API' # Get Api Code @botfather in telegramm
+bot = telebot.TeleBot(API_TOKEN)
+
+DATA_FILE = 'user_reputations.txt' # you need to create file in that folder, where your python project.
+
+def load_data():
+    user_reputations = {}
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, 'r') as f:
+                for line in f:
+                    user_id, reputation, praise = line.strip().split(',')
+                    user_reputations[int(user_id)] = {"reputation": int(reputation), "praise": int(praise)}
+        except Exception as e:
+            print(f"Error reading {DATA_FILE}: {e}")
+    return user_reputations
+
+user_reputations = load_data()
+
+def save_data():
+    with open(DATA_FILE, 'w') as f:
+        for user_id, data in user_reputations.items():
+            f.write(f"{user_id},{data['reputation']},{data['praise']}\n")
+
+def is_admin(message):
+    chat_admins = bot.get_chat_administrators(message.chat.id)
+    for admin in chat_admins:
+        if admin.user.id == message.from_user.id:
+            return True
+    return False
+
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    bot.reply_to(message, "Welcome! Use /rep+ and /rep- to change reputation.")
+
+@bot.message_handler(commands=['rep+'])
+def increase_rep(message):
+    if is_admin(message):
+        if message.reply_to_message:
+            user_id = message.reply_to_message.from_user.id
+            user_reputations[user_id] = user_reputations.get(user_id, {"reputation": 0, "praise": 0})
+            user_reputations[user_id]["reputation"] += 5
+            user_reputations[user_id]["praise"] += 1
+            save_data()
+            bot.reply_to(message, f"The Party is pleased with {user_id}! Great job! We add karma points and loyalty stars to you! You now have: {user_reputations[user_id]['reputation']} karma points and {user_reputations[user_id]['praise']} loyalty stars.")
+        else:
+            bot.reply_to(message, "Please use this command in reply to a user's message.")
+    else:
+        bot.reply_to(message, "This command is only available for administrators.")
+
+@bot.message_handler(commands=['rep-'])
+def decrease_rep(message):
+    if is_admin(message):
+        if message.reply_to_message:
+            user_id = message.reply_to_message.from_user.id
+            user_reputations[user_id] = user_reputations.get(user_id, {"reputation": 0, "praise": 0})
+            user_reputations[user_id]["reputation"] -= 5
+            save_data()
+            bot.reply_to(message, f"The Party is displeased with {user_id}! Not good! We take away karma points and loyalty stars. Now they have: {user_reputations[user_id]['reputation']} karma points and {user_reputations[user_id]['praise']} loyalty stars.")
+        else:
+            bot.reply_to(message, "Please use this command in reply to a user's message.")
+    else:
+        bot.reply_to(message, "This command is only available for administrators.")
+
+@bot.message_handler(commands=['rep?'])
+def check_rep(message):
+    if message.reply_to_message:
+        user_id = message.reply_to_message.from_user.id
+        user_reputations[user_id] = user_reputations.get(user_id, {"reputation": 0, "praise": 0})
+        bot.reply_to(message, f"Chat member {user_id} has: {user_reputations[user_id]['reputation']} karma points and {user_reputations[user_id]['praise']} loyalty stars.")
+    else:
+        bot.reply_to(message, "Please use this command in reply to a user's message.")
+
+bot.polling(none_stop=True)
